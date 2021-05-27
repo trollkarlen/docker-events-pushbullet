@@ -1,0 +1,7 @@
+pytest
+flake8
+pylint
+tox
+mock
+minimock
+-r requirements.txt

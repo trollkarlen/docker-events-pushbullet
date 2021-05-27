@@ -4,7 +4,7 @@ Receive PushBullet notifications when on docker container events
 ## How it works
 This image connects to the host machine socket, through a volume mapping, and listen [Docker Events API](https://docs.docker.com/engine/reference/api/docker_remote_api_v1.24/#/monitor-dockers-events).
 
-When specified events are triggered it sends the affected containers' information to PushBullet.  
+When specified events are triggered it sends the affected containers' information to PushBullet.
 
 If no events are specified in the enironment variables, these are the default ones: "create","update","destroy","die","kill","pause","unpause","start","stop"
 
@@ -26,6 +26,17 @@ docker run \
     jmc265/docker-events-pushbullet:latest
 ```
 
+### Run (default events, ignore self)
+```shell
+docker run \
+    -d --restart=always \
+    --name docker-events-pushbullet \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -e IGNORE_NAMES=docker-events-pushbullet \
+    -e PB_API_KEY="INSERT-KEY-HERE" \
+    jmc265/docker-events-pushbullet:latest
+```
+
 ### Run (custom events)
 ```shell
 docker run \
@@ -39,7 +50,7 @@ docker run \
 ### Run (Docker Compose/Stack)
 ```yml
 version: '2'
- 
+
 services:
   docker-events:
     container_name: docker-events
@@ -50,6 +61,17 @@ services:
       - PB_API_KEY=INSERT-KEY-HERE
       - EVENTS=die,destroy,kill
     restart: unless-stopped
+
+```
+
+### Testing
+Your need python3.9 and virtualenv installed
+
+```shell
+virtualenv --python python3.9 .py39
+. .py39/bin/activate
+python3 -m pip install tox
+tox
 
 ```
 

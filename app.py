@@ -12,18 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import docker
-from pushbullet import Pushbullet
 import os
 import sys
 import time
 import signal
 
+import docker
+
+from pushbullet import Pushbullet
+
 pb_key = None
-event_filters = ["create","update","destroy","die","kill","pause","unpause","start","stop"]
+event_filters = ["create", "update", "destroy", "die", "kill", "pause", "unpause", "start", "stop"]
+events = ["create", "update", "destroy", "die", "kill", "pause", "unpause", "start", "stop"]
+event_ending = {"create": "d", "update": "d", "destroy": "ed", "die": "d", "kill": "ed",
+                "pause": "d", "unpause": "d", "start": "ed", "stop": "ed"}
 ignore_names = []
 
-BUILD_VERSION=os.getenv('BUILD_VERSION')
+BUILD_VERSION = os.getenv('BUILD_VERSION')
 APP_NAME = 'Docker Events PushBullet (v{})'.format(BUILD_VERSION)
 
 def get_config(env_key, optional=False):
@@ -35,32 +40,39 @@ def get_config(env_key, optional=False):
 
 
 def watch_and_notify_events(client):
-    global event_filters
 
-    event_filters = {"event": event_filters}
+    e_filters = {"event": event_filters}
 
-    for event in client.events(filters=event_filters, decode=True):
-        container_id = event['Actor']['ID'][:12]
+    for event in client.events(filters=e_filters, decode=True):
+        # container_id = event['Actor']['ID'][:12]
+        print(event)
         attributes = event['Actor']['Attributes']
-        when = time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(event['time']))
-        event['status'] = event['status']+'d'
 
         if attributes['name'] in ignore_names:
             continue
 
+        when = time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(event['time']))
+
+        if event['status'] in events:
+            event['status past tense'] = event['status'] + event_ending[event['status']]
+        else:
+            print("Status not mapped, {}".format(event['status']))
+            event['status past tense'] = event['status'] + 'd'
+
+        if event['status'] in ['die'] and 'exitCode' in attributes:
+            event['status past tense'] += " with exitcode {}".format(attributes['exitCode'])
+
         message = "The container {} ({}) {} at {}" \
-                .format(attributes['name'],
-                        attributes['image'],
-                        event['status'],
-                        when)
+            .format(attributes['name'],
+                    attributes['image'],
+                    event['status past tense'],
+                    when)
         send_message(message)
 
 
 def send_message(message):
-    global pb_key
     pb = Pushbullet(pb_key)
     pb.push_note("Docker Event", message)
-    pass
 
 
 def exit_handler(_signo, _stack_frame):
@@ -86,12 +98,11 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, exit_handler)
     signal.signal(signal.SIGINT, exit_handler)
 
-    client = docker.DockerClient(base_url='unix://var/run/docker.sock')
-    host = host_server(client)
+    gclient = docker.DockerClient(base_url='unix://var/run/docker.sock')
+    host = host_server(gclient)
 
-    message = '{} reporting for duty on {}'.format(APP_NAME, host)
+    gmessage = '{} reporting for duty on {}'.format(APP_NAME, host)
 
-    send_message(message)
+    send_message(gmessage)
 
-    watch_and_notify_events(client)
-    pass
+    watch_and_notify_events(gclient)
